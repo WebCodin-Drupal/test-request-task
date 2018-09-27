@@ -1,0 +1,11 @@
+name = Request Core
+description = Main custom module for Customer and Request site
+package = Custom
+version = 1.0
+core = 7.x
+
+dependencies[] = views
+
+; Views Handlers
+files[] = handlers/request_core_handler_custom_solve_request.inc
+files[] = request_core.test

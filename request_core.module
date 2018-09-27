@@ -1,0 +1,122 @@
+<?php
+
+/**
+ * @file
+ * Request Core.
+ */
+
+/**
+ * Default request content type.
+ */
+define('REQUEST_CORE_CONTENT_TYPE', 'request');
+
+/**
+ * Default request closed term name.
+ */
+define('REQUEST_CORE_CLOSED_TERM_NAME', 'Closed');
+
+/**
+ * Default request open term name.
+ */
+define('REQUEST_CORE_NEW_TERM_NAME', 'New');
+
+/**
+ * Default request list view name.
+ */
+define('REQUEST_CORE_LIST_VIEW_NAME', 'request_list_page');
+
+/**
+ * Default request list view name.
+ */
+define('REQUEST_CORE_STATUS_TAX_NAME', 'request_status');
+
+/**
+ * Loads VBO actions.
+ */
+module_load_include('inc', 'request_core', 'request_core.action');
+
+/**
+ * Implements hook_views_api().
+ */
+function request_core_views_api() {
+  return array(
+    'api' => 3,
+  );
+}
+
+/**
+ * Implements hook_node_presave().
+ *
+ * Automatic fill in request dates (open/close).
+ */
+function request_core_node_presave($node) {
+  if ($node->type == REQUEST_CORE_CONTENT_TYPE && !empty($node->nid)) {
+    // Set open request time if empty.
+    $time_now = new DateTime('now');
+    $frt_langcode = field_language('node', $node, 'field_request_time');
+    $new_status = request_core_get_single_field_value($node, 'field_request_status', 'tid');
+    $original_status = request_core_get_single_field_value($node->original, 'field_request_status', 'tid');
+    if ($new_status != $original_status) {
+      if ($request_term = taxonomy_term_load($new_status)) {
+        switch ($request_term->name) {
+          case REQUEST_CORE_CLOSED_TERM_NAME:
+            $node->field_request_time[$frt_langcode][0]['value2'] = $time_now->getTimestamp();
+            break;
+
+          case REQUEST_CORE_NEW_TERM_NAME:
+            $node->field_request_time[$frt_langcode][0]['value'] = $time_now->getTimestamp();;
+            $node->field_request_time[$frt_langcode][0]['value2'] = NULL;
+            break;
+
+          default:
+            $node->field_request_time[$frt_langcode][0]['value2'] = NULL;
+        }
+      }
+    }
+  }
+}
+
+/**
+ * Implements hook_views_pre_render().
+ *
+ * Add average time per request data to view footer.
+ */
+function request_core_views_pre_render(&$view) {
+  if ($view->current_display == REQUEST_CORE_LIST_VIEW_NAME) {
+    $view->style_plugin->render_fields($view->result);
+    if ($spent_hours = request_core_views_average_time()) {
+      $avg_hours = array_sum($spent_hours)/count($spent_hours);
+      $footer_options = [
+        'label' => t('Average time per request'),
+        'content' => '<h3>' . t('Average time per request: @avg_hours hours', array('@avg_hours' => $avg_hours)) . '</h3>',
+        'format' => 'filtered_html',
+        'empty' => 0,
+      ];
+      $view->add_item('default', 'footer', 'views', 'area', $footer_options);
+    }
+  }
+}
+
+/**
+ * Build average time array.
+ */
+function request_core_views_average_time($hours = NULL) {
+  $average_time = &drupal_static(__FUNCTION__, array());
+
+  if ($hours !== NULL) {
+    $average_time[] = $hours;
+  }
+
+  return $average_time;
+}
+
+/**
+ * Get single value from field.
+ */
+function request_core_get_single_field_value($node, $field_name, $key = NULL) {
+  $field = field_get_items('node', $node, $field_name);
+  if (isset($field[0][$key])) {
+    return $field[0][$key];
+  }
+  return isset($field[0]) ? $field[0] : FALSE;
+}

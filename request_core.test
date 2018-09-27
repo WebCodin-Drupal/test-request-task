@@ -1,0 +1,83 @@
+<?php
+
+/**
+ * Tests the functionality of the Simpletest example content type.
+ */
+class RequestCoreTestCase extends DrupalWebTestCase {
+
+  /**
+   * A user with various administrative privileges.
+   */
+  protected $privileged_user;
+
+  /**
+   * Customer nid..
+   */
+  protected $customer_nid = 1;
+
+  public static function getInfo() {
+    return array(
+      'name' => 'Request and customer functionality',
+      'description' => 'Create, view, edit, delete, and change request and customer entries and verify its consistency in the database.',
+      'group' => 'Request and Customer',
+    );
+  }
+
+  function setUp() {
+    parent::setUp('node', 'views', 'entity', 'request_core');
+    // Create and log in our privileged user.
+    $this->privileged_user = $this->drupalCreateUser(array(
+      'access administration pages',
+      'administer modules',
+      'administer nodes',
+      'administer views',
+      'administer taxonomy',
+    ));
+  }
+
+  /**
+   * Tests disabling and re-enabling the Request Core module.
+   */
+  function testEnableRequestCore() {
+    $this->drupalLogin($this->privileged_user);
+
+    // Disable the Request Core module.
+    $edit = array();
+    $edit['modules[Custom][request_core][enable]'] = FALSE;
+    $this->drupalPost('admin/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), 'Modules status has been updated.');
+    module_list(TRUE);
+    $this->assertFalse(module_exists('request_core'), 'Request Core module is not enabled.');
+
+    // Attempt to re-enable the Request Core module.
+    $edit = array();
+    $edit['modules[Custom][request_core][enable]'] = 'request_core';
+    $this->drupalPost('admin/modules', $edit, t('Save configuration'));
+    $this->assertText(t('The configuration options have been saved.'), 'Modules status has been updated.');
+    module_list(TRUE);
+    $this->assertTrue(module_exists('request_core'), 'Request Core module is enabled.');
+  }
+
+  /**
+   * Tests editing a Simpletest example node.
+   */
+  public function testSimpleTestExampleEdit() {
+    $settings = array(
+      'type' => 'request',
+      'title' => $this->randomName(32),
+      'field_request_description' => array(LANGUAGE_NONE => array(array('value' => $this->randomName(64)))),
+      'field_request_customer' => array(LANGUAGE_NONE => array(array('target_id' => $this->customer_nid))),
+    );
+    $node = $this->drupalCreateNode($settings);
+
+
+    $this->verbose('Node created: ' . var_export($node, TRUE));
+
+    $this->drupalGet("node/{$node->nid}/edit");
+
+    $this->assertResponse(200, 'User is allowed to edit the content.');
+
+    $this->assertText(t("@title", array('@title' => $settings['title'])), "Found title in edit form");
+  }
+
+}
